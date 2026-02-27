@@ -1,10 +1,18 @@
 ## grblHAL changelog
 
+<a name="20260227">Build 20260227
+
+Core:
+
+* Improved handling of `G43` some more - can now be used in the same block as `M6` when the internal workflow for tool change is enabled or `M6` is ignored.
+
+---
+
 <a name="20260225">Build 20260225
 
 Core:
 
-* Fix incorrect behaviour when a tool change using the built-in workflow is aborted, the selected tool was set as the current tool.
+* Fixed incorrect behaviour when a tool change using the built-in workflow is aborted, the selected tool was set as the current tool.
 
 * Clarification: `G66` macros calls are not run on their first invocation and will only be run on subsequent blocks containing axis words for `G0` or `G1` motion.
 Subsequent blocks may contain either the `G0` or `G1` command word, if not their modal state will be used. The macro will be called after the motion has been sent to the planner.

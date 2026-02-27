@@ -636,9 +636,7 @@ typedef struct {
 #endif
     uint32_t line_number;           //!< Last line number sent
     tool_id_t tool_pending;         //!< Tool to be selected on next M6
-#if NGC_EXPRESSIONS_ENABLE
-    tool_id_t g43_pending;          //!< Tool offset to be selected on next M6, for macro ATC
-#endif
+    tool_id_t g43_pending;          //!< Tool offset from tool in tool table to be applied on M6 completed, set when G43 is in block with M6
     bool file_run;                  //!< Tracks % command
     bool file_stream;               //!< Tracks streaming from file
     bool is_laser_ppi_mode;

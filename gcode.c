@@ -699,6 +699,7 @@ static status_code_t gc_at_exit (status_code_t status)
     if(!(status == Status_OK || status == Status_Handled)) {
 
         pending_tool = NULL;
+        gc_state.g43_pending = (tool_id_t)-1;
 
         // Clear any pending output commands
         gc_clear_output_commands(output_commands);
@@ -891,11 +892,62 @@ static inline void tool_set (tool_data_t *tool)
     pending_tool = NULL;
 }
 
-// For core use only
+FLASHMEM static void tool_offset_apply (tool_offset_mode_t mode, tool_id_t tool, float *values, axes_signals_t axis_words)
+{
+    uint8_t idx = N_AXIS;
+    bool tlo_changed = false;
+    tool_data_t *tool_data = NULL;
+
+    gc_state.g43_pending = (tool_id_t)-1;
+    gc_state.modal.tool_offset_mode = mode;
+
+    if(gc_state.modal.tool_offset_mode == ToolLengthOffset_Enable || gc_state.modal.tool_offset_mode == ToolLengthOffset_ApplyAdditional)
+        tool_data = grbl.tool_table.get_tool(tool)->data;
+
+    do {
+        idx--;
+        switch(gc_state.modal.tool_offset_mode) {
+
+            case ToolLengthOffset_Cancel: // G49
+                tlo_changed |= gc_state.modal.tool_length_offset[idx] != 0.0f;
+                gc_state.modal.tool_length_offset[idx] = 0.0f;
+                break;
+
+            case ToolLengthOffset_Enable: // G43
+                if(gc_state.modal.tool_length_offset[idx] != tool_data->offset.values[idx]) {
+                    tlo_changed = true;
+                    gc_state.modal.tool_length_offset[idx] = tool_data->offset.values[idx];
+                }
+                break;
+
+            case ToolLengthOffset_ApplyAdditional: // G43.2
+                tlo_changed |= tool_data->offset.values[idx] != 0.0f;
+                gc_state.modal.tool_length_offset[idx] += tool_data->offset.values[idx];
+                break;
+
+            case ToolLengthOffset_EnableDynamic: // G43.1
+                if(bit_istrue(axis_words.mask, bit(idx)) && gc_state.modal.tool_length_offset[idx] != values[idx]) {
+                    tlo_changed = true;
+                    gc_state.modal.tool_length_offset[idx] = values[idx];
+                }
+                break;
+        }
+    } while(idx);
+
+    if(tlo_changed) {
+        report_add_realtime(Report_ToolOffset);
+        system_flag_wco_change();
+    }
+}
+
+// For core use only, called internally and from state machine
 FLASHMEM void gc_tool_changed (void)
 {
     if(pending_tool)
         tool_set(pending_tool);
+
+    if(gc_state.g43_pending > 0)
+        tool_offset_apply(ToolLengthOffset_Enable, gc_state.g43_pending, NULL, (axes_signals_t){0});
 
     grbl.on_tool_changed(gc_state.tool);
 
@@ -2369,15 +2421,14 @@ status_code_t gc_execute_block (char *block)
 #if NGC_EXPRESSIONS_ENABLE
         if(hal.stream.file) {
             gc_state.tool_pending = (tool_id_t)-1; // force set tool
-            if(grbl.tool_table.n_tools) {
+            if(grbl.tool_table.n_tools && !command_words.G8) {
                 if((gc_block.words.h = gc_state.g43_pending > 0)) { // ?? --> >= 0
                     command_words.G8 = On;
-                    gc_block.words.h = On;
                     gc_block.values.h = (float)gc_state.g43_pending;
                     gc_block.modal.tool_offset_mode = ToolLengthOffset_Enable;
                 }
-                gc_state.g43_pending = (tool_id_t)-1;
             }
+            gc_state.g43_pending = (tool_id_t)-1;
         }
 #endif
     } else if(!gc_block.words.t)
@@ -2712,7 +2763,7 @@ status_code_t gc_execute_block (char *block)
                             RETURN(Status_GcodeIllegalToolTableEntry);
                         gc_block.words.h = Off;
                     } else if(!command_words.M6)
-                        gc_block.values.h = (float)gc_state.tool->tool_id;
+                        gc_block.values.h = gc_block.words.t ? gc_block.values.t : (float)gc_state.tool->tool_id;
                 } else
                     RETURN(Status_GcodeUnsupportedCommand);
                 break;
@@ -3876,15 +3927,13 @@ status_code_t gc_execute_block (char *block)
                 system_set_exec_state_flag(EXEC_TOOL_CHANGE);   // Set up program pause for manual tool change
                 protocol_execute_realtime();                    // Execute...
             }
-#if NGC_EXPRESSIONS_ENABLE
-            if((status_code_t)int_value == Status_Unhandled) &&
-                 grbl.tool_table.n_tools && command_words.G8 && gc_block.modal.tool_offset_mode == ToolLengthOffset_Enable) {
-                gc_state.g43_pending = gc_block.words.h ? (tool_id_t)gc_block.values.h : pending_tool->tool_id;
-                command_words.G8 = gc_block.words.h = Off;
-            }
-#endif
-            if(!macro_toolchange && state_get() != STATE_TOOL_CHANGE)
+
+            if(!(macro_toolchange || state_get() == STATE_TOOL_CHANGE))
                 gc_tool_changed();
+            else if(grbl.tool_table.n_tools && command_words.G8 && gc_block.modal.tool_offset_mode == ToolLengthOffset_Enable) {
+                command_words.G8 = Off;
+                gc_state.g43_pending = gc_block.values.h > 0.0f ? (tool_id_t)gc_block.values.h : pending_tool->tool_id;
+            }
         }
     }
 
@@ -4092,57 +4141,8 @@ status_code_t gc_execute_block (char *block)
     // NOTE: If G43 were supported, its operation wouldn't be any different from G43.1 in terms
     // of execution. The error-checking step would simply load the offset value into the correct
     // axis of the block XYZ value array.
-    if(command_words.G8) { // Indicates a change.
-
-        bool tlo_changed = false;
-        tool_data_t *tool_data = NULL;
-
-        idx = N_AXIS;
-        gc_state.modal.tool_offset_mode = gc_block.modal.tool_offset_mode;
-
-        if(gc_state.modal.tool_offset_mode == ToolLengthOffset_Enable || gc_state.modal.tool_offset_mode == ToolLengthOffset_ApplyAdditional)
-            tool_data = grbl.tool_table.get_tool((tool_id_t)gc_block.values.h)->data;
-
-        do {
-
-            idx--;
-
-            switch(gc_state.modal.tool_offset_mode) {
-
-                case ToolLengthOffset_Cancel: // G49
-                    tlo_changed |= gc_state.modal.tool_length_offset[idx] != 0.0f;
-                    gc_state.modal.tool_length_offset[idx] = 0.0f;
-                    break;
-
-                case ToolLengthOffset_Enable: // G43
-                    if(gc_state.modal.tool_length_offset[idx] != tool_data->offset.values[idx]) {
-                        tlo_changed = true;
-                        gc_state.modal.tool_length_offset[idx] = tool_data->offset.values[idx];
-                    }
-                    break;
-
-                case ToolLengthOffset_ApplyAdditional: // G43.2
-                    tlo_changed |= tool_data->offset.values[idx] != 0.0f;
-                    gc_state.modal.tool_length_offset[idx] += tool_data->offset.values[idx];
-                    break;
-
-                case ToolLengthOffset_EnableDynamic: // G43.1
-                    if(bit_istrue(axis_words.mask, bit(idx)) && gc_state.modal.tool_length_offset[idx] != gc_block.values.xyz[idx]) {
-                        tlo_changed = true;
-                        gc_state.modal.tool_length_offset[idx] = gc_block.values.xyz[idx];
-                    }
-                    break;
-
-                default:
-                    break;
-            }
-        } while(idx);
-
-        if(tlo_changed) {
-            report_add_realtime(Report_ToolOffset);
-            system_flag_wco_change();
-        }
-    }
+    if(command_words.G8)
+        tool_offset_apply(gc_block.modal.tool_offset_mode, (tool_id_t)gc_block.values.h, gc_block.values.xyz, axis_words);
 
     // [15. Coordinate system selection ]:
     if(command_words.G12) {
