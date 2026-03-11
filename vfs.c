@@ -226,6 +226,43 @@ char *vfs_fixpath (char *path)
     return path;
 }
 
+static const char *parse_path (const char *path)
+{
+    static char *abspath;
+    static size_t maxlen = 0;
+
+    if(strlen(cwd) + strlen(path) + 2 > maxlen) {
+        maxlen = max(VFS_CWD_LENGTH, strlen(cwd) + strlen(path) + 2);
+        abspath = realloc(abspath, maxlen);
+    }
+
+    if(abspath) {
+
+        char newpath[VFS_CWD_LENGTH];
+
+        strcpy(newpath, path);
+        strcpy(abspath, *path == '/' ? "/" : cwd);
+
+        char *p, *el = strtok(newpath, "/");
+
+        while(el) {
+            if(!strcmp("..", el)) {
+                if((p = strrchr(abspath, '/')))
+                    *(p + (p == abspath ? 1 : 0)) = '\0';
+            } else if(*el && strcmp(el, ".")) {
+                if(strlen(abspath) == 1)
+                    strcat(abspath, el);
+                else
+                    strcat(strcat(abspath, "/"), el);
+            }
+            el = strtok(NULL, "/");
+        }
+    } else
+        maxlen = 0;
+
+    return abspath ? (const char *)abspath : path;
+}
+
 static vfs_mount_t *get_mount (const char *path)
 {
     vfs_errno = 0;
@@ -384,44 +421,26 @@ int vfs_rmdir (const char *path)
 
 int vfs_chdir (const char *path)
 {
-    int ret;
-    char *p;
+    int ret = -1;
+    vfs_mount_t *mount;
 
     vfs_errno = 0;
+    path = parse_path(path);
 
-    if(!strcmp("..", path) && strcmp("/", (path = cwd)) && (p = strrchr(cwd, '/')))
-        *(p + (p == cwd ? 1 : 0)) = '\0';
-
-    if(*path != '/' && strcmp(cwd, "/")) {
-        if(strcmp(path, "..")) {
-            if(strlen(cwd) > 1)
-                strcat(cwd, "/");
-            strcat(cwd, path);
-        } else {
-            char *s = strrchr(cwd, '/');
-            if(s)
-                *s = '\0';
-        }
-    } else {
-
-        if(*path == '/')
-            strcpy(cwd, path);
-        else
-            strcat(strcpy(cwd, "/"), path);
-
-        vfs_fixpath(cwd);
-
-        if((cwdmount = get_mount(cwd)) && strchr(cwd + 1, '/') == NULL && cwdmount != &root) {
-
-            strcpy(cwd, cwdmount->path);
-            vfs_fixpath(cwd);
-
-            return 0;
+    if((mount = get_mount(path))) {
+        if(mount->vfs->fchdir)
+            ret = mount->vfs->fchdir(get_filename(mount, path));
+        else {
+            vfs_stat_t st;
+            if(!((ret = mount->vfs->fstat(get_filename(mount, path), &st)) == 0 && st.st_mode.directory))
+                ret = -1;
         }
     }
 
-    if((ret = cwdmount ? cwdmount->vfs->fchdir(path) : -1) != 0) // + strlen(mount->path));))
-        vfs_fixpath(cwd);
+    if(ret == 0) {
+        strcpy(cwd, path);
+        cwdmount = mount;
+    }
 
     return ret;
 }
@@ -498,16 +517,21 @@ void vfs_closedir (vfs_dir_t *dir)
 char *vfs_getcwd (char *buf, size_t len)
 {
     char *cwds = cwdmount->vfs->fgetcwd ? cwdmount->vfs->fgetcwd(NULL, len) : cwd;
+    size_t cwdlen = strlen(cwdmount->path) + strlen(cwds) + 2;
 
     vfs_errno = 0;
 
-    if(buf == NULL)
-        buf = (char *)malloc(strlen(cwds) + 1);
+    if(buf == NULL) {
+        len = cwdlen + 1;
+        buf = (char *)malloc(cwdlen + 1);
+    }
 
-    if(buf)
-        strcpy(buf, cwds);
+    if(buf && cwdlen < len)
+        strcat(strcpy(buf, cwdmount->path), cwds + 1);
 
-    return buf ? buf : cwds;
+    vfs_fixpath(buf);
+
+    return cwdlen < len ? buf : NULL;
 }
 
 int vfs_chmod (const char *filename, vfs_st_mode_t attr, vfs_st_mode_t mask)
@@ -519,39 +543,11 @@ int vfs_chmod (const char *filename, vfs_st_mode_t attr, vfs_st_mode_t mask)
 
 int vfs_stat (const char *filename, vfs_stat_t *st)
 {
-    char tmp[VFS_CWD_LENGTH], *p;
-
-    if(!strcmp("..", filename)) {
-        strcpy(tmp, cwd);
-        if((p = strrchr(tmp, '/')))
-            *(p + (p == tmp ? 1 : 0)) = '\0';
-        filename = tmp;
-    }
+    filename = parse_path(filename);
 
     vfs_mount_t *mount = get_mount(filename);
 
-    int ret = mount ? mount->vfs->fstat(get_filename(mount, filename), st) : -1;
-
-    if(ret == -1 && (!strcmp("/", filename) || (strchr(filename, '/') == NULL && !strcmp("/", cwd)))) {
-
-        strcat(cwd, filename);
-        mount = get_mount(cwd);
-        cwd[1] = '\0';
-
-        if(mount) {
-            st->st_size = 0;
-            st->st_mode.mode = 0;
-            st->st_mode.directory = true;
-#if defined(ESP_PLATFORM)
-            st->st_mtim = mount->st_mtim;
-#else
-            st->st_mtime = mount->st_mtime;
-#endif
-            ret = 0;
-        }
-    }
-
-    return ret;
+    return mount ? mount->vfs->fstat(get_filename(mount, filename), st) : -1;
 }
 
 int vfs_utime (const char *filename, struct tm *modified)
@@ -634,10 +630,17 @@ bool vfs_unmount (const char *path)
     if(!strcmp(path, "/")) {
         root.vfs = &fs_null;
         root.mode = (vfs_st_mode_t){ .directory = true, .read_only = true, .hidden = true };
+        if(cwdmount == &root)
+            strcpy(cwd, "/");
     } else {
 
         vfs_mount_t *mount = get_mount(path);
         if(mount) {
+
+            if(mount == cwdmount) {
+                cwdmount = &root;
+                strcpy(cwd, "/");
+            }
 
             vfs_mount_t *pmount = &root;
 

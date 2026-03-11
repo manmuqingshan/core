@@ -26,6 +26,7 @@ typedef void (*foreground_task_ptr)(void *data);
 
 bool task_add_immediate (foreground_task_ptr fn, void *data);
 bool task_add_delayed (foreground_task_ptr fn, void *data, uint32_t delay_ms);
+bool task_run_on_reset (foreground_task_ptr fn, void *data);
 bool task_run_on_startup (foreground_task_ptr fn, void *data);
 void task_delete (foreground_task_ptr fn, void *data);
 bool task_add_systick (foreground_task_ptr fn, void *data);

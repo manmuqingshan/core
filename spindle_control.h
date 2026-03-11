@@ -98,6 +98,7 @@ typedef struct {
     float rpm_high_limit;
     float angular_position; //!< Number of revolutions since last reset
     float rpm_programmed;
+    bool ccw;
     uint32_t index_count;
     uint32_t pulse_count;
     uint32_t error_count;

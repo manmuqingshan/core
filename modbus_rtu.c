@@ -264,7 +264,7 @@ static bool modbus_send_rtu (modbus_message_t *msg, const modbus_callbacks_t *ca
 
     while(spin_lock);
 
-    if(block) {
+    if((block &= !sys.blocking_event)) {
 
         if(is_blocking)
             return false;
