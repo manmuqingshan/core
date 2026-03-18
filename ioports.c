@@ -85,24 +85,35 @@ static on_settings_changed_ptr on_settings_changed;
 static io_ports_private_t ports_cfg[] = {
     {
          .type = Port_AnalogIn, .count = -1, .free = -1, .min_fn = Input_Analog_Aux0, .max_fn = Input_Analog_AuxMax,
-         .n_max = (Input_Analog_AuxMax - Input_Analog_Aux0 + 1), .last_claimed = (Input_Analog_AuxMax - Input_Analog_Aux0)
+         .n_max = N_AUX_AIN_MAX, .last_claimed = N_AUX_AIN_MAX - 1
     },
     {
          .type = Port_AnalogOut, .count = -1, .free = -1, .min_fn = Output_Analog_Aux0, .max_fn = Output_Analog_AuxMax,
-         .n_max = (Output_Analog_AuxMax - Output_Analog_Aux0 + 1), .last_claimed = (Output_Analog_AuxMax - Output_Analog_Aux0)
+         .n_max = N_AUX_AOUT_MAX, .last_claimed = N_AUX_AOUT_MAX - 1
     },
     {
         .type = Port_DigitalIn, .count = -1, .free = -1, .min_fn = Input_Aux0, .max_fn = Input_AuxMax,
-        .n_max = (Input_AuxMax - Input_Aux0 + 1), .last_claimed = (Input_AuxMax - Input_Aux0)
+        .n_max = N_AUX_DIN_MAX, .last_claimed = N_AUX_DIN_MAX - 1
     },
     {
         .type = Port_DigitalOut, .count = -1, .free = -1, .min_fn = Output_Aux0, .max_fn = Output_AuxMax,
-        .n_max = (Output_AuxMax - Output_Aux0 + 1), .last_claimed = (Output_AuxMax - Output_Aux0)
+        .n_max = N_AUX_DOUT_MAX, .last_claimed = N_AUX_DOUT_MAX - 1
     }
 };
 
-PROGMEM static const char apnum[] = "E0\0E1\0E2\0E3\0E4\0E5\0E6\0E7\0E8\0E9\0E10\0E11\0E12\0E13\0E14\0E15";
-PROGMEM static const char dpnum[] = "P0\0P1\0P2\0P3\0P4\0P5\0P6\0P7\0P8\0P9\0P10\0P11\0P12\0P13\0P14\0P15\0P16\0P17\0P18\0P19\0P20\0P21\0P22\0P23";
+PROGMEM static const char apnum[] = "E0\0E1\0E2\0E3\0E4\0E5\0E6\0E7"
+#if N_AUX_AIN > 8 || N_AUX_AOUT > 8
+"\0E8\0E9\0E10\0E11\0E12\0E13\0E14\0E15";
+#endif
+;
+PROGMEM static const char dpnum[] = "P0\0P1\0P2\0P3\0P4\0P5\0P6\0P7\0P8\0P9\0P10\0P11\0P12\0P13\0P14\0P15"
+#if N_AUX_DIN > 16 || N_AUX_DOUT > 16
+"\0P16\0P17\0P18\0P19\0P20\0P21\0P22\0P23"
+#endif
+#if N_AUX_DIN > 24 || N_AUX_DOUT > 24
+"\0P24\0P25\0P26\0P27\0P28\0P29\0P30\0P31"
+#endif
+;
 
 __STATIC_FORCEINLINE io_ports_private_t *get_port_data (io_port_type_t type, io_port_direction_t dir)
 {

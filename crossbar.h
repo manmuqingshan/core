@@ -3,7 +3,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2021-2025 Terje Io
+  Copyright (c) 2021-2026 Terje Io
 
   grblHAL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,6 +23,22 @@
 #define _CROSSBAR_H_
 
 #include "nuts_bolts.h"
+
+#if !defined N_AUX_AIN || defined __DOXYGEN__
+#define N_AUX_AIN 8
+#endif
+
+#if !defined N_AUX_AOUT || defined __DOXYGEN__
+#define N_AUX_AOUT 8
+#endif
+
+#if !defined N_AUX_DIN || defined __DOXYGEN__
+#define N_AUX_DIN 24
+#endif
+
+#if !defined N_AUX_DOUT || defined __DOXYGEN__
+#define N_AUX_DOUT 24
+#endif
 
 typedef enum {
 // NOTE: the sequence of the following enums MUST match the control_signals_t layout
@@ -113,6 +129,7 @@ typedef enum {
     Input_Aux13,
     Input_Aux14,
     Input_Aux15,
+#if N_AUX_DIN > 16
     Input_Aux16,
     Input_Aux17,
     Input_Aux18,
@@ -121,7 +138,22 @@ typedef enum {
     Input_Aux21,
     Input_Aux22,
     Input_Aux23,
+#endif
+#if N_AUX_DIN > 24
+    Input_Aux24,
+    Input_Aux25,
+    Input_Aux26,
+    Input_Aux27,
+    Input_Aux28,
+    Input_Aux29,
+    Input_Aux30,
+    Input_Aux31,
+    Input_AuxMax = Input_Aux31,
+#elif N_AUX_DIN > 16
     Input_AuxMax = Input_Aux23,
+#elif
+    Input_AuxMax = Input_Aux15,
+#endif
     Input_Analog_Aux0,
     Input_Analog_Aux1,
     Input_Analog_Aux2,
@@ -130,7 +162,19 @@ typedef enum {
     Input_Analog_Aux5,
     Input_Analog_Aux6,
     Input_Analog_Aux7,
+#if N_AUX_AIN > 8
+    Input_Analog_Aux8,
+    Input_Analog_Aux9,
+    Input_Analog_Aux10,
+    Input_Analog_Aux11,
+    Input_Analog_Aux12,
+    Input_Analog_Aux13,
+    Input_Analog_Aux14,
+    Input_Analog_Aux15,
+    Input_Analog_AuxMax = Input_Analog_Aux15,
+#else
     Input_Analog_AuxMax = Input_Analog_Aux7,
+#endif
 // Output pins
     Output_StepX,
     Outputs = Output_StepX,
@@ -213,6 +257,7 @@ typedef enum {
     Output_Aux13,
     Output_Aux14,
     Output_Aux15,
+#if N_AUX_DOUT > 16
     Output_Aux16,
     Output_Aux17,
     Output_Aux18,
@@ -221,7 +266,22 @@ typedef enum {
     Output_Aux21,
     Output_Aux22,
     Output_Aux23,
+#endif
+#if N_AUX_DOUT > 24
+    Output_Aux24,
+    Output_Aux25,
+    Output_Aux26,
+    Output_Aux27,
+    Output_Aux28,
+    Output_Aux29,
+    Output_Aux30,
+    Output_Aux31,
+    Output_AuxMax = Output_Aux31,
+#elif N_AUX_DOUT > 16
     Output_AuxMax = Output_Aux23,
+#elif
+    Output_AuxMax = Output_Aux15,
+#endif
     Output_Analog_Aux0,
     Output_Analog_Aux1,
     Output_Analog_Aux2,
@@ -230,7 +290,19 @@ typedef enum {
     Output_Analog_Aux5,
     Output_Analog_Aux6,
     Output_Analog_Aux7,
+#if N_AUX_AOUT > 8
+    Output_Analog_Aux8,
+    Output_Analog_Aux9,
+    Output_Analog_Aux10,
+    Output_Analog_Aux11,
+    Output_Analog_Aux12,
+    Output_Analog_Aux13,
+    Output_Analog_Aux14,
+    Output_Analog_Aux15,
+    Output_Analog_AuxMax = Output_Analog_Aux15,
+#else
     Output_Analog_AuxMax = Output_Analog_Aux7,
+#endif
     Output_LED,
     Output_LED_R,
     Output_LED_G,
@@ -347,6 +419,7 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Input_Aux13,                .name = "Aux in 13" },
     { .function = Input_Aux14,                .name = "Aux in 14" },
     { .function = Input_Aux15,                .name = "Aux in 15" },
+#if N_AUX_DIN > 16
     { .function = Input_Aux16,                .name = "Aux in 16" },
     { .function = Input_Aux17,                .name = "Aux in 17" },
     { .function = Input_Aux18,                .name = "Aux in 18" },
@@ -355,6 +428,17 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Input_Aux21,                .name = "Aux in 21" },
     { .function = Input_Aux22,                .name = "Aux in 22" },
     { .function = Input_Aux23,                .name = "Aux in 23" },
+#endif
+#if N_AUX_DIN > 24
+    { .function = Input_Aux24,                .name = "Aux in 24" },
+    { .function = Input_Aux25,                .name = "Aux in 25" },
+    { .function = Input_Aux26,                .name = "Aux in 26" },
+    { .function = Input_Aux27,                .name = "Aux in 27" },
+    { .function = Input_Aux28,                .name = "Aux in 28" },
+    { .function = Input_Aux29,                .name = "Aux in 29" },
+    { .function = Input_Aux30,                .name = "Aux in 30" },
+    { .function = Input_Aux31,                .name = "Aux in 31" },
+#endif
     { .function = Input_Analog_Aux0,          .name = "Aux analog in 0" },
     { .function = Input_Analog_Aux1,          .name = "Aux analog in 1" },
     { .function = Input_Analog_Aux2,          .name = "Aux analog in 2" },
@@ -363,6 +447,16 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Input_Analog_Aux5,          .name = "Aux analog in 5" },
     { .function = Input_Analog_Aux6,          .name = "Aux analog in 6" },
     { .function = Input_Analog_Aux7,          .name = "Aux analog in 7" },
+#if N_AUX_AIN > 8
+    { .function = Input_Analog_Aux8,          .name = "Aux analog in 8" },
+    { .function = Input_Analog_Aux9,          .name = "Aux analog in 9" },
+    { .function = Input_Analog_Aux10,         .name = "Aux analog in 10" },
+    { .function = Input_Analog_Aux11,         .name = "Aux analog in 11" },
+    { .function = Input_Analog_Aux12,         .name = "Aux analog in 12" },
+    { .function = Input_Analog_Aux13,         .name = "Aux analog in 13" },
+    { .function = Input_Analog_Aux14,         .name = "Aux analog in 14" },
+    { .function = Input_Analog_Aux15,         .name = "Aux analog in 15" },
+#endif
     { .function = Output_StepX,               .name = "X step" },
     { .function = Output_StepX2,              .name = "X2 step" },
     { .function = Output_StepY,               .name = "Y step" },
@@ -469,14 +563,26 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Output_Aux13,               .name = "Aux out 13" },
     { .function = Output_Aux14,               .name = "Aux out 14" },
     { .function = Output_Aux15,               .name = "Aux out 15" },
-    { .function = Output_Aux15,               .name = "Aux out 16" },
-    { .function = Output_Aux16,               .name = "Aux out 17" },
-    { .function = Output_Aux17,               .name = "Aux out 18" },
-    { .function = Output_Aux18,               .name = "Aux out 19" },
-    { .function = Output_Aux19,               .name = "Aux out 20" },
-    { .function = Output_Aux20,               .name = "Aux out 21" },
-    { .function = Output_Aux21,               .name = "Aux out 22" },
-    { .function = Output_Aux22,               .name = "Aux out 23" },
+#if N_AUX_DOUT > 16
+    { .function = Output_Aux16,               .name = "Aux out 16" },
+    { .function = Output_Aux17,               .name = "Aux out 17" },
+    { .function = Output_Aux18,               .name = "Aux out 18" },
+    { .function = Output_Aux19,               .name = "Aux out 19" },
+    { .function = Output_Aux20,               .name = "Aux out 20" },
+    { .function = Output_Aux21,               .name = "Aux out 21" },
+    { .function = Output_Aux22,               .name = "Aux out 22" },
+    { .function = Output_Aux23,               .name = "Aux out 23" },
+#endif
+#if N_AUX_DOUT > 24
+    { .function = Output_Aux24,               .name = "Aux out 24" },
+    { .function = Output_Aux25,               .name = "Aux out 25" },
+    { .function = Output_Aux26,               .name = "Aux out 26" },
+    { .function = Output_Aux27,               .name = "Aux out 27" },
+    { .function = Output_Aux28,               .name = "Aux out 28" },
+    { .function = Output_Aux29,               .name = "Aux out 29" },
+    { .function = Output_Aux30,               .name = "Aux out 30" },
+    { .function = Output_Aux31,               .name = "Aux out 31" },
+#endif
     { .function = Output_Analog_Aux0,         .name = "Aux analog out 0" },
     { .function = Output_Analog_Aux1,         .name = "Aux analog out 1" },
     { .function = Output_Analog_Aux2,         .name = "Aux analog out 2" },
@@ -485,6 +591,16 @@ PROGMEM static const pin_name_t pin_names[] = {
     { .function = Output_Analog_Aux5,         .name = "Aux analog out 5" },
     { .function = Output_Analog_Aux6,         .name = "Aux analog out 6" },
     { .function = Output_Analog_Aux7,         .name = "Aux analog out 7" },
+#if N_AUX_AOUT > 8
+    { .function = Output_Analog_Aux8,         .name = "Aux analog out 8" },
+    { .function = Output_Analog_Aux9,         .name = "Aux analog out 9" },
+    { .function = Output_Analog_Aux10,        .name = "Aux analog out 10" },
+    { .function = Output_Analog_Aux11,        .name = "Aux analog out 11" },
+    { .function = Output_Analog_Aux12,        .name = "Aux analog out 12" },
+    { .function = Output_Analog_Aux13,        .name = "Aux analog out 13" },
+    { .function = Output_Analog_Aux14,        .name = "Aux analog out 14" },
+    { .function = Output_Analog_Aux15,        .name = "Aux analog out 15" },
+#endif
     { .function = Output_LED,                 .name = "LED" },
     { .function = Output_LED_R,               .name = "LED R" },
     { .function = Output_LED_G,               .name = "LED G" },
