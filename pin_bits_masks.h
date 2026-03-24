@@ -344,22 +344,26 @@ static bool __claim_in_port (xbar_t *properties, uint8_t port, void *data)
     return ((aux_ctrl_t *)data)->port != IOPORT_UNASSIGNED;
 }
 
-static bool __find_in_ext (xbar_t *properties, uint8_t port, void *data)
-{
-    bool ok;
-
-    if((ok = properties->pin == ((aux_ctrl_t *)data)->gpio.pin))
-        ((aux_ctrl_t *)data)->port = port;
-
-    return ok;
-}
-
 static bool __find_in_port (xbar_t *properties, uint8_t port, void *data)
 {
     ((aux_ctrl_t *)data)->port = port;
 
     return true;
 }
+
+#ifdef USE_EXPANDERS
+
+static bool __find_in_ext (xbar_t *properties, uint8_t port, void *data)
+{
+    bool ok;
+
+    if((ok = properties->pin == ((aux_ctrl_t *)data)->gpio.pin)) // TODO: check for direct access and config functions?
+        ((aux_ctrl_t *)data)->port = port;
+
+    return ok;
+}
+
+#endif
 
 // --
 
@@ -371,11 +375,17 @@ static inline void aux_ctrl_claim_ports (aux_claim_explicit_ptr aux_claim_explic
         aux_claim = __claim_in_port;
 
     if(sizeof(aux_ctrl)) for(idx = 0; idx < sizeof(aux_ctrl) / sizeof(aux_ctrl_t); idx++) {
-
+#ifdef USE_EXPANDERS
         if(aux_ctrl[idx].gpio.port == (void *)EXPANDER_PORT) {
-            if(ioports_enumerate(Port_Digital, Port_Input, (pin_cap_t){ .irq_mode = aux_ctrl[idx].irq_mode, .external = On, .claimable = On }, __find_in_ext, &aux_ctrl[idx]))
-                aux_claim_explicit(&aux_ctrl[idx]);         
-        } else if(aux_ctrl[idx].port != IOPORT_UNASSIGNED)
+            if(ioports_enumerate(Port_Digital, Port_Input, (pin_cap_t){ .irq_mode = aux_ctrl[idx].irq_mode, .external = On, .claimable = On }, __find_in_ext, &aux_ctrl[idx])) {
+                if((aux_ctrl[idx].input = ioport_claim(Port_Digital, Port_Input, &aux_ctrl[idx].port, NULL))) {
+                    ioport_set_function((xbar_t *)aux_ctrl[idx].input, aux_ctrl[idx].function, NULL);
+                    aux_claim_explicit(&aux_ctrl[idx]);
+                }
+            }
+        } else
+#endif
+        if(aux_ctrl[idx].port != IOPORT_UNASSIGNED)
             aux_claim_explicit(&aux_ctrl[idx]);
         else {
 
@@ -529,10 +539,13 @@ typedef bool (*aux_claim_explicit_out_ptr)(aux_ctrl_out_t *aux_ctrl);
 
 static bool __claim_out_port (xbar_t *properties, uint8_t port, void *data)
 {
+#ifdef USE_EXPANDERS
     if(((aux_ctrl_out_t *)data)->gpio.port == (void *)EXPANDER_PORT) {
         if(((aux_ctrl_out_t *)data)->gpio.pin == properties->pin && properties->set_value)
             ((aux_ctrl_out_t *)data)->port = port;
-    } else if(ioport_claim(Port_Digital, Port_Output, &port, xbar_fn_to_pinname(((aux_ctrl_out_t *)data)->function)))
+    } else
+#endif
+    if(ioport_claim(Port_Digital, Port_Output, &port, xbar_fn_to_pinname(((aux_ctrl_out_t *)data)->function)))
         ((aux_ctrl_out_t *)data)->port = port;
 
     return ((aux_ctrl_out_t *)data)->port != IOPORT_UNASSIGNED;
@@ -563,15 +576,17 @@ static inline void aux_ctrl_claim_out_ports (aux_claim_explicit_out_ptr aux_clai
         aux_claim_explicit = ___claim_out_port_explicit;
 
     if(sizeof(aux_ctrl_out)) for(idx = 0; idx < sizeof(aux_ctrl_out) / sizeof(aux_ctrl_out_t); idx++) {
+#ifdef USE_EXPANDERS
         if(aux_ctrl_out[idx].gpio.port == (void *)EXPANDER_PORT) {
             if(ioports_enumerate(Port_Digital, Port_Output, (pin_cap_t){ .external = On, .claimable = On }, aux_claim, &aux_ctrl_out[idx])) {
-                if((aux_ctrl_out[idx].output = ioport_claim(Port_Digital, Port_Output, &aux_ctrl_out[idx].port, NULL /*xbar_fn_to_pinname(aux_ctrl_out[idx].function)*/))) {
+                if((aux_ctrl_out[idx].output = ioport_claim(Port_Digital, Port_Output, &aux_ctrl_out[idx].port, NULL))) {
                     ioport_set_function((xbar_t *)aux_ctrl_out[idx].output, aux_ctrl_out[idx].function, NULL);
-                        // TODO: else set description?
                     aux_claim_explicit(&aux_ctrl_out[idx]);
                 }
             }
-        } else if(aux_ctrl_out[idx].gpio.pin == 0xFF) {
+        } else
+#endif
+        if(aux_ctrl_out[idx].gpio.pin == 0xFF) {
             if(ioports_enumerate(Port_Digital, Port_Output, (pin_cap_t){ .claimable = On }, aux_claim, &aux_ctrl_out[idx]))
                 aux_claim_explicit(&aux_ctrl_out[idx]);
         } else if(aux_ctrl_out[idx].port != IOPORT_UNASSIGNED)

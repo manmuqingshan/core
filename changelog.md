@@ -1,5 +1,19 @@
 ## grblHAL changelog
 
+<a name="20260324">20260324
+
+Core:
+
+* Improved support for using expander inputs for basic functions. Currently only available for the RP2040 driver.
+
+Drivers:
+
+* Simulator: fix for spindle related crash after core change. Ref. issue [#19](https://github.com/grblHAL/Simulator/issues/19).
+
+* RP4040: improved support for using expander inputs for basic functions.
+
+---
+
 <a name="20260321">Build 20260321
 
 Core:
