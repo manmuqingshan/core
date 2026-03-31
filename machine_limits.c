@@ -275,12 +275,12 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
     uint_fast8_t n_cycle = (2 * settings.homing.locate_cycles + 1);
     uint_fast8_t step_pin[N_AXIS], n_active_axis, dual_motor_axis = 0;
     bool autosquare_check = false;
-    float max_travel = 0.0f, homing_rate;
+    float max_travel = 0.0f, homing_rate_sqr = 0.0f;
     homing_mode_t mode = HomingMode_Seek;
-    axes_signals_t axislock, homing_state;
+    axes_signals_t axislock, homing_state, homed = {0};
     home_signals_t signals_state;
     squaring_mode_t squaring_mode = SquaringMode_Both;
-    coord_data_t distance, target;
+    coord_data_t distance, target, homing_rate;
     plan_line_data_t plan_data;
     rt_exec_t rt_exec, rt_exec_states = EXEC_SAFETY_DOOR|EXEC_RESET|EXEC_CYCLE_COMPLETE;
 
@@ -311,6 +311,14 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
 #endif
             distance.values[idx] = settings.axis[idx].max_travel * (-HOMING_AXIS_SEARCH_SCALAR);
 
+            if((homing_rate.values[idx] = hal.homing.get_feedrate((axes_signals_t){ .bits = bit(idx) }, mode)) == 0.0f)
+                return false;
+#ifdef KINEMATICS_API
+        if(kinematics.homing_cycle_get_feedrate)
+            homing_rate.values[idx] = kinematics.homing_cycle_get_feedrate((axes_signals_t){ .bits = bit(idx) }, homing_rate.values[idx], mode);
+#endif
+
+            homing_rate_sqr += homing_rate.values[idx] * homing_rate.values[idx];
             max_travel = max(max_travel, distance.values[idx]);
 
             if(bit_istrue(auto_square.mask, bit(idx)))
@@ -320,9 +328,6 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
 
     if(max_travel == 0.0f)
         return true;
-
-    if((homing_rate = hal.homing.get_feedrate(cycle, HomingMode_Seek)) == 0.0f)
-        return false;
 
     if(auto_square.mask) {
         float fail_distance = (-settings.homing.dual_axis.fail_length_percent / 100.0f) * settings.axis[dual_motor_axis].max_travel;
@@ -338,6 +343,7 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
     do {
 
         // Initialize and declare variables needed for homing routine.
+        float cycle_time = 0.0f;
         system_convert_array_steps_to_mpos(target.values, sys.position);
         axislock = (axes_signals_t){0};
         n_active_axis = 0;
@@ -345,7 +351,7 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
         idx = N_AXIS;
         do {
             // Set target location for active axes and setup computation for homing rate.
-            if (bit_istrue(cycle.mask, bit(--idx))) {
+            if(bit_istrue(cycle.mask, bit(--idx))) {
                 n_active_axis++;
 
 #ifdef KINEMATICS_API
@@ -354,28 +360,31 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
                 sys.position[idx] = 0;
 #endif
                 // Set target direction based on cycle mask and homing cycle approach state.
-                if (bit_istrue(settings.homing.dir_mask.value, bit(idx)))
+                if(bit_istrue(settings.homing.dir_mask.value, bit(idx)))
                     target.values[idx] = mode == HomingMode_Pulloff ? distance.values[idx] : - distance.values[idx];
                 else
                     target.values[idx] = mode == HomingMode_Pulloff ? - distance.values[idx] : distance.values[idx];
+
+                cycle_time = max(cycle_time, fabsf(target.values[idx]) / homing_rate.values[idx]);
 
                 // Apply axislock to the step port pins active in this cycle.
                 axislock.mask |= step_pin[idx];
             }
         } while(idx);
 
-#ifdef KINEMATICS_API
-        if(kinematics.homing_cycle_get_feedrate)
-            homing_rate = kinematics.homing_cycle_get_feedrate(cycle, homing_rate, mode);
-#endif
-
         if(grbl.on_homing_rate_set)
-            grbl.on_homing_rate_set(cycle, homing_rate, mode);
+            grbl.on_homing_rate_set(cycle, &homing_rate, mode);
 
-        homing_rate *= sqrtf(n_active_axis); // [sqrt(N_AXIS)] Adjust so individual axes all move at homing rate.
+        idx = N_AXIS;
+        if(mode != HomingMode_Pulloff) do {
+            if(bit_istrue(cycle.mask, bit(--idx))) {
+                float distance = homing_rate.values[idx] * cycle_time;
+                target.values[idx] = target.values[idx] >= 0.0f ? distance : -distance;
+            }
+        } while(idx);
 
         // Perform homing cycle. Planner buffer should be empty, as required to initiate the homing cycle.
-        plan_data.feed_rate = homing_rate;      // Set current homing rate.
+        plan_data.feed_rate = sqrtf(homing_rate_sqr);
         sys.homing_axis_lock.mask = axislock.mask;
 
 #ifdef KINEMATICS_API
@@ -392,7 +401,7 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
 
         do {
 
-            if (mode != HomingMode_Pulloff) {
+            if(mode != HomingMode_Pulloff) {
 
                 // Check homing switches state. Lock out cycle axes when they change.
                 homing_state = homing_signals_select((signals_state = hal.homing.get_state()), auto_square, squaring_mode);
@@ -473,14 +482,16 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
 
             grbl.on_execute_realtime(STATE_HOMING);
 
-        } while (axislock.mask & AXES_BITMASK);
+        } while(axislock.mask & AXES_BITMASK);
 
         st_reset(); // Immediately force kill steppers and reset step segment buffer.
         hal.delay_ms(settings.homing.debounce_delay, NULL); // Delay to allow transient dynamics to dissipate.
 
+        homed.mask = cycle.mask;
+        homing_rate_sqr = 0.0f;
+
         // Reverse direction and reset homing rate for cycle(s).
         mode = mode == HomingMode_Pulloff ? HomingMode_Locate : HomingMode_Pulloff;
-        homing_rate = hal.homing.get_feedrate(cycle, mode);
 
         // After first cycle, homing enters locating phase. Shorten search to pull-off distance.
         idx = N_AXIS;
@@ -488,8 +499,16 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
             // Only one initial pass for auto squared axis when both motors are active
             //if(mode == SquaringMode_Both && auto_square.mask)
             //    cycle.mask &= ~auto_square.mask;
-            if(bit_istrue(cycle.mask, bit(--idx)))
+            if(bit_istrue(cycle.mask, bit(--idx))) {
                 distance.values[idx] = homing_pulloff.values[idx] * (mode == HomingMode_Locate ? HOMING_AXIS_LOCATE_SCALAR : 1.0f);
+                if((homing_rate.values[idx] = hal.homing.get_feedrate((axes_signals_t){ .bits = bit(idx) }, mode)) == 0.0f)
+                    bit_false(cycle.mask, bit(idx));
+#ifdef KINEMATICS_API
+                else if(kinematics.homing_cycle_get_feedrate)
+                    homing_rate.values[idx] = kinematics.homing_cycle_get_feedrate((axes_signals_t){ .bits = bit(idx) }, homing_rate.values[idx], mode);
+#endif
+                homing_rate_sqr += homing_rate.values[idx] * homing_rate.values[idx];
+            }
         } while(idx);
 
         if(auto_square.mask) {
@@ -498,7 +517,7 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
             hal.stepper.disable_motors((axes_signals_t){0}, SquaringMode_Both);
         }
 
-    } while (homing_rate > 0.0f && cycle.mask && n_cycle-- > 0);
+    } while(homing_rate_sqr > 0.0f && cycle.mask && n_cycle-- > 0);
 
     // Pull off B motor to compensate for switch inaccuracy when configured.
     if(auto_square.mask && settings.axis[dual_motor_axis].dual_axis_offset != 0.0f) {
@@ -525,7 +544,7 @@ FLASHMEM static bool homing_cycle (axes_signals_t cycle, axes_signals_t auto_squ
     mc_backlash_init(cycle);
 #endif
     sys.step_control.flags = 0; // Return step control to normal operation.
-    sys.homed.mask |= cycle.mask;
+    sys.homed.mask |= homed.mask;
 
     return true;
 }

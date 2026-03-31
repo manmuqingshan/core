@@ -1,5 +1,31 @@
 ## grblHAL changelog
 
+<a name="20260331">Build 20260331
+
+Core:
+
+* Changed homing to use the configured feed rate for all axes in a given cycle.  
+Slow locate phase can now be skipped by setting `$24` to 0, this can be useful for Trinamic sensorless homing.
+
+* Fix for pendant not working if default stream is native USB and no client is connected. Ref. issue [#927](https://github.com/grblHAL/core/issues/927).
+
+Drivers:
+
+* RP2040, STM32F4xx and STM32F7xx: simplified SPI clock handling.
+
+* STM32F4xx: fix for spindle encoder not working with PA15, ref issue [#149](https://github.com/grblHAL/STM32F4xx/issues/149)
+
+Plugins:
+
+* Motors: updated for core change related to homing. Ref. issue [#21](https://github.com/grblHAL/Plugins_motor/issues/21).
+
+* SD card: changed `$FF` command to allow formatting of littlefs partition.
+New syntax: `$FF=<mount path>` or `$FF=<filing system>`. `<filing system>` is `fatfs` for SD card and `littlefs` for littlefs.
+
+* Networking: updated WIZnet driver code to latest version.
+
+---
+
 <a name="20260326">Build 20260326
 
 Core:

@@ -707,6 +707,7 @@ FLASHMEM bool stream_mpg_enable (bool on)
                 hal.stream.write = mpg.stream.write;
                 hal.stream.write_n = mpg.stream.write_n;
                 hal.stream.write_char = mpg.stream.write_char;
+                hal.stream.is_connected = mpg.stream.is_connected;
             }
             hal.stream.get_rx_buffer_free = mpg.stream.get_rx_buffer_free;
             hal.stream.cancel_read_buffer = mpg.stream.cancel_read_buffer;
