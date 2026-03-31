@@ -663,7 +663,7 @@ FLASHMEM static status_code_t macro_add (macro_id_t id, vfs_file_t *file)
 {
     m98_macro_t *sub = macro_find(id);
 
-    if(sub == NULL && (sub = calloc(sizeof(m98_macro_t), 1))) {
+    if(sub == NULL && (sub = calloc(1, sizeof(m98_macro_t)))) {
         sub->id = id;
         sub->file = file;
         if(m98_macros) {

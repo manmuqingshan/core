@@ -36,7 +36,7 @@ json_out_t *json_start (vfs_file_t *file, uint32_t max_levels)
 {
     json_out_t *handle = NULL;
 
-    if(file && (handle = calloc(sizeof(json_out_t) + sizeof(uint32_t) * max_levels, 1))) {
+    if(file && (handle = calloc(1, sizeof(json_out_t) + sizeof(uint32_t) * max_levels))) {
         handle->file = file;
         handle->max_level = max_levels;
         vfs_write("{", 1, 1, handle->file);

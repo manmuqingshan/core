@@ -43,7 +43,7 @@ bool device_fs_add_stream (io_stream_properties_t *stream)
     if(!stream->flags.claimable || !stream->flags.modbus_ready)
         return false;
 
-    fs_device_t *add = calloc(sizeof(fs_device_t), 1);
+    fs_device_t *add = calloc(1, sizeof(fs_device_t));
     if(add) {
 
         switch(stream->type) {
@@ -119,7 +119,7 @@ static vfs_file_t *fs_open (const char *filename, const char *mode)
 
         device->io_stream.state.passthru = On; // flag open
 
-        if((file = calloc(sizeof(vfs_file_t) + sizeof(io_stream_t *), 1))) {
+        if((file = calloc(1, sizeof(vfs_file_t) + sizeof(io_stream_t *)))) {
             io_stream = &device->io_stream;
 #ifdef __GNUC__
 #pragma GCC diagnostic push
