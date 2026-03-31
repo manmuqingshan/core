@@ -108,7 +108,7 @@ static vfs_dir_t *fs_opendir (const char *path)
     static vfs_dir_t *dir = NULL;
 
     if(dir == NULL)
-        dir = calloc(sizeof(vfs_dir_t) + 3, 1);
+        dir = calloc(1, sizeof(vfs_dir_t) + 3);
 
     if(dir) {
         vfs_mount_t **mount = (vfs_mount_t **)&dir->handle;
@@ -587,7 +587,7 @@ bool vfs_mount (const char *path, const vfs_t *fs, vfs_st_mode_t mode)
     if(!strcmp(path, "/")) {
         root.vfs = fs;
         root.mode = mode;
-    } else if((mount = (vfs_mount_t *)calloc(sizeof(vfs_mount_t), 1))) {
+    } else if((mount = (vfs_mount_t *)calloc(1, sizeof(vfs_mount_t)))) {
 
         struct tm tm;
 

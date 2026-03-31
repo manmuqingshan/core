@@ -827,7 +827,7 @@ FLASHMEM static io_ports_list_t *insert_ports (void)
 {
     io_ports_list_t *io_ports;
 
-    if((io_ports = calloc(sizeof(io_ports_list_t), 1))) {
+    if((io_ports = calloc(1, sizeof(io_ports_list_t)))) {
 
         if(ports == NULL)
             ports = io_ports;
