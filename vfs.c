@@ -125,14 +125,16 @@ static char *fs_readdir (vfs_dir_t *dir, vfs_dirent_t *dirent)
     vfs_errno = 0;
 
     if(*mount) {
-        strcpy(dirent->name, (*mount)->path);
-        *(strchr(dirent->name, '\0') - 1) = '\0';
+        strcpy(dirent->name, (*mount)->path + 1);
+        if(*dirent->name)
+            *(strchr(dirent->name, '\0') - 1) = '\0';
         dirent->st_mode = (*mount)->mode;
         dirent->st_mode.directory = true;
-        while((*mount = (*mount)->next)) {
+        *mount = NULL;
+    /*    while((*mount = (*mount)->next)) {
             if(!(*mount)->mode.hidden)
                 break;
-        }
+        }*/
     } else
         *dirent->name = '\0';
 
