@@ -32,7 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifndef __STRUTILS_H__
-#define __STRUTILS_H___
+#define __STRUTILS_H__
 
 #include <stdint.h>
 #include <time.h>
