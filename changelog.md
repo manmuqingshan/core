@@ -1,5 +1,13 @@
 ## grblHAL changelog
 
+<a name="20260418">20260418
+
+Drivers:
+
+* RP2040: update for 16-bit shift register code not working with higher numbered pins, fix for FatFS compilation error.
+
+---
+
 <a name="20260416">Build 20260416
 
 Core:
